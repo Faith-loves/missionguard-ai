@@ -1,6 +1,8 @@
 import asyncio
+import copy
+import time
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Query
 
 from services.nasa_service import (
     get_cmes,
@@ -8,7 +10,9 @@ from services.nasa_service import (
     get_solar_flares,
 )
 
-from services.noaa_service import get_kp_index
+from services.noaa_service import (
+    get_kp_index,
+)
 
 from services.space_weather_processor import (
     summarize_space_weather,
@@ -25,8 +29,86 @@ router = APIRouter(
 )
 
 
-@router.get("")
-async def mission_risk(days: int = 7):
+CACHE_TTL_SECONDS = 300
+STALE_FALLBACK_SECONDS = 1800
+
+_cache = {}
+_cache_lock = asyncio.Lock()
+
+
+def format_risk_result(
+    result,
+):
+    """
+    Supports MissionGuard's flat risk-engine
+    result and also a nested format if the
+    engine is changed later.
+    """
+
+    if not result:
+        return {
+            "mission": {
+                "risk_score": None,
+                "mission_readiness": None,
+                "risk_level": "UNKNOWN",
+                "recommendation": "HOLD",
+            },
+            "risk_factors": None,
+        }
+
+
+    if "mission" in result:
+        return {
+            "mission":
+                result.get("mission"),
+
+            "risk_factors":
+                result.get(
+                    "risk_factors"
+                ),
+        }
+
+
+    mission = {
+        "risk_score":
+            result.get(
+                "risk_score"
+            ),
+
+        "mission_readiness":
+            result.get(
+                "mission_readiness"
+            ),
+
+        "risk_level":
+            result.get(
+                "risk_level",
+                "UNKNOWN",
+            ),
+
+        "recommendation":
+            result.get(
+                "recommendation",
+                "HOLD",
+            ),
+    }
+
+
+    return {
+        "mission": mission,
+
+        "risk_factors":
+            (
+                result.get("risk_factors")
+                or result.get("factors")
+                or result.get("factor_scores")
+            ),
+    }
+
+
+async def build_live_assessment(
+    days: int,
+):
     (
         flare_result,
         cme_result,
@@ -38,6 +120,7 @@ async def mission_risk(days: int = 7):
         get_geomagnetic_storms(days),
         get_kp_index(),
     )
+
 
     summary = summarize_space_weather(
         flares=flare_result.get(
@@ -73,38 +156,245 @@ async def mission_risk(days: int = 7):
         ),
     )
 
-    risk = calculate_mission_risk(
-        summary
+
+    raw_risk_result = (
+        calculate_mission_risk(
+            summary
+        )
     )
+
+
+    formatted = format_risk_result(
+        raw_risk_result
+    )
+
 
     return {
         "status": "online",
+
         "period_days": days,
-        "mission": {
-            "risk_score": risk[
-                "risk_score"
+
+        "mission":
+            formatted["mission"],
+
+        "risk_factors":
+            formatted[
+                "risk_factors"
             ],
 
-            "mission_readiness": risk[
-                "mission_readiness"
-            ],
+        "data_quality":
+            summary.get(
+                "data_quality"
+            ),
 
-            "risk_level": risk[
-                "risk_level"
-            ],
+        "space_weather":
+            summary,
 
-            "recommendation": risk[
-                "recommendation"
-            ],
+        "provider_status": {
+            "nasa_flares":
+                flare_result.get(
+                    "available",
+                    False,
+                ),
+
+            "nasa_cmes":
+                cme_result.get(
+                    "available",
+                    False,
+                ),
+
+            "nasa_storms":
+                storm_result.get(
+                    "available",
+                    False,
+                ),
+
+            "noaa_kp":
+                kp_result.get(
+                    "available",
+                    False,
+                ),
         },
 
-        "risk_factors": risk[
-            "factors"
-        ],
+        "provider_sources": {
+            "nasa_flares":
+                flare_result.get(
+                    "provider"
+                ),
 
-        "data_quality": risk[
-            "data_quality"
-        ],
+            "nasa_cmes":
+                cme_result.get(
+                    "provider"
+                ),
 
-        "space_weather": summary,
+            "nasa_storms":
+                storm_result.get(
+                    "provider"
+                ),
+        },
     }
+
+
+@router.get("")
+async def get_mission_risk(
+    days: int = Query(
+        default=7,
+        ge=1,
+        le=30,
+    ),
+):
+    now = time.monotonic()
+
+    cached = _cache.get(days)
+
+
+    if cached:
+        age = (
+            now
+            - cached["timestamp"]
+        )
+
+        if age < CACHE_TTL_SECONDS:
+
+            response = copy.deepcopy(
+                cached["response"]
+            )
+
+            response[
+                "cache_status"
+            ] = "fresh"
+
+            response[
+                "cache_age_seconds"
+            ] = round(
+                age,
+                1,
+            )
+
+            return response
+
+
+    async with _cache_lock:
+
+        now = time.monotonic()
+
+        cached = _cache.get(days)
+
+
+        if cached:
+            age = (
+                now
+                - cached["timestamp"]
+            )
+
+            if age < CACHE_TTL_SECONDS:
+
+                response = copy.deepcopy(
+                    cached["response"]
+                )
+
+                response[
+                    "cache_status"
+                ] = "fresh"
+
+                response[
+                    "cache_age_seconds"
+                ] = round(
+                    age,
+                    1,
+                )
+
+                return response
+
+
+        live_response = (
+            await build_live_assessment(
+                days
+            )
+        )
+
+
+        if (
+            live_response[
+                "data_quality"
+            ]
+            == "complete"
+        ):
+
+            _cache[days] = {
+                "timestamp":
+                    time.monotonic(),
+
+                "response":
+                    copy.deepcopy(
+                        live_response
+                    ),
+            }
+
+
+            live_response[
+                "cache_status"
+            ] = "live"
+
+            live_response[
+                "cache_age_seconds"
+            ] = 0
+
+            return live_response
+
+
+        cached = _cache.get(days)
+
+
+        if cached:
+
+            age = (
+                time.monotonic()
+                - cached[
+                    "timestamp"
+                ]
+            )
+
+            if (
+                age
+                <= STALE_FALLBACK_SECONDS
+            ):
+
+                response = copy.deepcopy(
+                    cached["response"]
+                )
+
+                response[
+                    "cache_status"
+                ] = (
+                    "stale-fallback"
+                )
+
+                response[
+                    "cache_age_seconds"
+                ] = round(
+                    age,
+                    1,
+                )
+
+                response[
+                    "live_provider_status"
+                ] = (
+                    live_response[
+                        "provider_status"
+                    ]
+                )
+
+                return response
+
+
+        live_response[
+            "cache_status"
+        ] = "unavailable"
+
+        live_response[
+            "cache_age_seconds"
+        ] = None
+
+        return live_response
+
