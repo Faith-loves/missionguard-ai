@@ -6,6 +6,8 @@ import {
   useState,
 } from "react";
 
+import WhatIfSimulator from "../components/WhatIfSimulator";
+
 
 type MissionData = {
   status: string;
@@ -631,6 +633,9 @@ export default function Home() {
         </section>
 
 
+        <WhatIfSimulator />
+
+
         <section className="mt-6 rounded-2xl border border-white/10 bg-white/[0.03] p-6">
 
           <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
@@ -1206,4 +1211,6 @@ function getKpTone(
 
   return "border-emerald-400/20 text-emerald-300";
 }
+
+
 
