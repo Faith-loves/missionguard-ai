@@ -16,3 +16,13 @@ backend/*.pyc
 .DS_Store
 Thumbs.db
 .vscode/
+
+# Python testing
+backend/.pytest_cache/
+
+# Python cache
+backend/**/__pycache__/
+
+# Local ML generated artifacts
+backend/models/*.pkl
+

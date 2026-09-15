@@ -1,7 +1,13 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from routes.space_weather import router as space_weather_router
+from routes.space_weather import (
+    router as space_weather_router,
+)
+
+from routes.mission_risk import (
+    router as mission_risk_router,
+)
 
 
 app = FastAPI(
@@ -22,13 +28,21 @@ app.add_middleware(
 )
 
 
-app.include_router(space_weather_router)
+app.include_router(
+    space_weather_router
+)
+
+app.include_router(
+    mission_risk_router
+)
 
 
 @app.get("/")
 def root():
     return {
-        "message": "MissionGuard AI API is running",
+        "message": (
+            "MissionGuard AI API is running"
+        ),
         "status": "online",
     }
 
