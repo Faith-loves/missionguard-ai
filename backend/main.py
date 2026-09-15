@@ -1,14 +1,15 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from routes.space_weather import router as space_weather_router
+
 
 app = FastAPI(
     title="MissionGuard AI API",
-    version="1.0.0"
+    version="1.0.0",
 )
 
 
-# Allow the Next.js frontend to communicate with FastAPI
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -19,6 +20,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+app.include_router(space_weather_router)
 
 
 @app.get("/")
