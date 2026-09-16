@@ -13,6 +13,10 @@ from routes.simulator import (
     router as simulator_router,
 )
 
+from routes.ai_explanation import (
+    router as ai_explanation_router,
+)
+
 
 app = FastAPI(
     title="MissionGuard AI API",
@@ -23,11 +27,13 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
 
-    allow_origin_regex=(
-        r"^http://(localhost|127\.0\.0\.1):\d+$"
-    ),
+    # Development only:
+    # allow the Next.js frontend whether it is
+    # opened through localhost or the local
+    # network address.
+    allow_origins=["*"],
 
-    allow_credentials=True,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -43,6 +49,10 @@ app.include_router(
 
 app.include_router(
     simulator_router
+)
+
+app.include_router(
+    ai_explanation_router
 )
 
 
@@ -63,3 +73,4 @@ def health():
         "status":
             "healthy",
     }
+

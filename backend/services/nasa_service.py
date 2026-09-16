@@ -1,4 +1,4 @@
-from datetime import date, timedelta
+﻿from datetime import date, timedelta
 import asyncio
 
 import httpx
@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
+        extra="ignore",
     )
 
 
@@ -210,3 +211,4 @@ async def get_geomagnetic_storms(
         endpoint="GST",
         days=days,
     )
+

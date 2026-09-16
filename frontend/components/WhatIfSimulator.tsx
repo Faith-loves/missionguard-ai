@@ -1,6 +1,9 @@
 ﻿"use client";
 
-import { FormEvent, useState } from "react";
+import {
+  FormEvent,
+  useState,
+} from "react";
 
 
 type FlareClass =
@@ -28,6 +31,33 @@ type SimulationResult = {
     cme: number;
     storm: number;
   };
+
+  simulated_space_weather: {
+    solar_activity: {
+      total_flares: number;
+      strongest_flare: string | null;
+    };
+
+    cme_activity: {
+      total_cmes: number;
+      earth_directed_cmes: number;
+      fastest_speed_km_s: number;
+    };
+
+    geomagnetic_activity: {
+      latest_kp: number;
+      storm_count: number;
+    };
+  };
+};
+
+
+type ExplanationResult = {
+  provider: string;
+  model: string | null;
+  ai_generated: boolean;
+  explanation: string;
+  warning?: string;
 };
 
 
@@ -40,11 +70,17 @@ export default function WhatIfSimulator() {
   const [kpIndex, setKpIndex] =
     useState(2);
 
-  const [flareClass, setFlareClass] =
-    useState<FlareClass>("NONE");
+  const [
+    flareClass,
+    setFlareClass,
+  ] = useState<FlareClass>(
+    "NONE"
+  );
 
-  const [flareMagnitude, setFlareMagnitude] =
-    useState(1);
+  const [
+    flareMagnitude,
+    setFlareMagnitude,
+  ] = useState(1);
 
   const [
     earthDirectedCmes,
@@ -62,12 +98,33 @@ export default function WhatIfSimulator() {
   ] = useState(0);
 
   const [result, setResult] =
-    useState<SimulationResult | null>(null);
+    useState<SimulationResult | null>(
+      null
+    );
+
+  const [
+    explanation,
+    setExplanation,
+  ] =
+    useState<ExplanationResult | null>(
+      null
+    );
 
   const [loading, setLoading] =
     useState(false);
 
+  const [
+    explanationLoading,
+    setExplanationLoading,
+  ] = useState(false);
+
   const [error, setError] =
+    useState<string | null>(null);
+
+  const [
+    explanationError,
+    setExplanationError,
+  ] =
     useState<string | null>(null);
 
 
@@ -79,6 +136,8 @@ export default function WhatIfSimulator() {
     try {
       setLoading(true);
       setError(null);
+      setExplanation(null);
+      setExplanationError(null);
 
       const response = await fetch(
         `${API_URL}/simulator/evaluate`,
@@ -137,6 +196,114 @@ export default function WhatIfSimulator() {
   }
 
 
+  async function generateExplanation() {
+    if (!result) {
+      return;
+    }
+
+    try {
+      setExplanationLoading(true);
+      setExplanationError(null);
+
+      const response = await fetch(
+        `${API_URL}/ai-explanation/explain`,
+        {
+          method: "POST",
+
+          headers: {
+            "Content-Type":
+              "application/json",
+          },
+
+          body: JSON.stringify({
+            mode:
+              "simulation",
+
+            mission:
+              result.mission,
+
+            risk_factors:
+              result.risk_factors,
+
+            space_weather: {
+              solar_activity: {
+                total_flares:
+                  result
+                    .simulated_space_weather
+                    .solar_activity
+                    .total_flares,
+
+                strongest_flare:
+                  result
+                    .simulated_space_weather
+                    .solar_activity
+                    .strongest_flare,
+              },
+
+              cme_activity: {
+                total_cmes:
+                  result
+                    .simulated_space_weather
+                    .cme_activity
+                    .total_cmes,
+
+                earth_directed_cmes:
+                  result
+                    .simulated_space_weather
+                    .cme_activity
+                    .earth_directed_cmes,
+
+                fastest_speed_km_s:
+                  result
+                    .simulated_space_weather
+                    .cme_activity
+                    .fastest_speed_km_s,
+              },
+
+              geomagnetic_activity: {
+                latest_kp:
+                  result
+                    .simulated_space_weather
+                    .geomagnetic_activity
+                    .latest_kp,
+
+                storm_count:
+                  result
+                    .simulated_space_weather
+                    .geomagnetic_activity
+                    .storm_count,
+              },
+            },
+          }),
+        }
+      );
+
+
+      if (!response.ok) {
+        throw new Error(
+          `AI endpoint returned ${response.status}`
+        );
+      }
+
+
+      const data =
+        (await response.json()) as ExplanationResult;
+
+      setExplanation(data);
+
+    } catch (err) {
+      console.error(err);
+
+      setExplanationError(
+        "Unable to generate the scenario explanation."
+      );
+
+    } finally {
+      setExplanationLoading(false);
+    }
+  }
+
+
   function resetSimulation() {
     setKpIndex(2);
     setFlareClass("NONE");
@@ -145,7 +312,9 @@ export default function WhatIfSimulator() {
     setCmeSpeed(0);
     setStormCount(0);
     setResult(null);
+    setExplanation(null);
     setError(null);
+    setExplanationError(null);
   }
 
 
@@ -166,8 +335,8 @@ export default function WhatIfSimulator() {
           <p className="mt-2 max-w-2xl text-sm text-gray-500">
             Adjust hypothetical conditions and
             evaluate how MissionGuard would respond.
-            Simulations do not alter the live
-            NASA or NOAA assessment.
+            Simulations do not alter live NASA or
+            NOAA data.
           </p>
         </div>
 
@@ -222,18 +391,19 @@ export default function WhatIfSimulator() {
                 )}`
           }
         >
+
           <div className="grid grid-cols-2 gap-3">
 
             <select
               value={flareClass}
               onChange={(event) =>
                 setFlareClass(
-                  event.target
-                    .value as FlareClass
+                  event.target.value as FlareClass
                 )
               }
               className="rounded-xl border border-white/10 bg-[#0C1220] px-4 py-3 text-sm outline-none focus:border-violet-400/50"
             >
+
               <option value="NONE">
                 None
               </option>
@@ -249,6 +419,7 @@ export default function WhatIfSimulator() {
               <option value="X">
                 X-Class
               </option>
+
             </select>
 
 
@@ -268,7 +439,7 @@ export default function WhatIfSimulator() {
                   )
                 )
               }
-              className="rounded-xl border border-white/10 bg-[#0C1220] px-4 py-3 text-sm outline-none disabled:cursor-not-allowed disabled:opacity-40 focus:border-violet-400/50"
+              className="rounded-xl border border-white/10 bg-[#0C1220] px-4 py-3 text-sm outline-none disabled:opacity-40 focus:border-violet-400/50"
             />
 
           </div>
@@ -358,7 +529,7 @@ export default function WhatIfSimulator() {
           <button
             type="submit"
             disabled={loading}
-            className="flex-1 rounded-xl bg-violet-500 px-5 py-3 text-sm font-semibold text-white transition hover:bg-violet-400 disabled:opacity-50"
+            className="flex-1 rounded-xl bg-violet-500 px-5 py-3 text-sm font-semibold transition hover:bg-violet-400 disabled:opacity-50"
           >
             {loading
               ? "Running..."
@@ -391,7 +562,7 @@ export default function WhatIfSimulator() {
       {result && (
         <div className="mt-8 border-t border-white/10 pt-8">
 
-          <div className="mb-5 flex items-center justify-between">
+          <div className="mb-5 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
 
             <div>
               <p className="text-sm text-gray-500">
@@ -405,7 +576,7 @@ export default function WhatIfSimulator() {
 
 
             <span
-              className={`rounded-full border px-4 py-2 text-sm font-bold ${getRecommendationStyle(
+              className={`w-fit rounded-full border px-4 py-2 text-sm font-bold ${getRecommendationStyle(
                 result.mission
                   .recommendation
               )}`}
@@ -432,7 +603,6 @@ export default function WhatIfSimulator() {
               }
             />
 
-
             <ResultCard
               label="Readiness"
               value={`${result.mission.mission_readiness}%`}
@@ -443,7 +613,6 @@ export default function WhatIfSimulator() {
                 )
               }
             />
-
 
             <ResultCard
               label="Risk Level"
@@ -458,7 +627,6 @@ export default function WhatIfSimulator() {
                 )
               }
             />
-
 
             <ResultCard
               label="Decision"
@@ -518,6 +686,91 @@ export default function WhatIfSimulator() {
           </div>
 
 
+          <div className="mt-8 rounded-xl border border-violet-400/20 bg-violet-400/[0.04] p-5">
+
+            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+
+              <div>
+                <p className="text-sm font-semibold text-violet-300">
+                  IBM Granite Scenario Explanation
+                </p>
+
+                <p className="mt-1 text-xs text-gray-500">
+                  Granite explains the simulated
+                  result without changing it.
+                </p>
+              </div>
+
+
+              <button
+                type="button"
+                onClick={
+                  generateExplanation
+                }
+                disabled={
+                  explanationLoading
+                }
+                className="rounded-xl bg-violet-500 px-4 py-2.5 text-sm font-semibold transition hover:bg-violet-400 disabled:opacity-50"
+              >
+                {explanationLoading
+                  ? "Granite is analysing..."
+                  : explanation
+                    ? "Regenerate Explanation"
+                    : "Explain Scenario with Granite"}
+              </button>
+
+            </div>
+
+
+            {explanationError && (
+              <p className="mt-4 text-sm text-red-300">
+                {explanationError}
+              </p>
+            )}
+
+
+            {explanation && (
+              <div className="mt-6">
+
+                <div className="mb-3 flex flex-wrap items-center gap-3">
+
+                  <span className="rounded-full border border-violet-400/20 bg-violet-400/10 px-3 py-1 text-xs font-semibold text-violet-300">
+                    {explanation.ai_generated
+                      ? "AI GENERATED"
+                      : "FALLBACK"}
+                  </span>
+
+
+                  {explanation.model && (
+                    <span className="text-xs text-gray-500">
+                      {explanation.model}
+                    </span>
+                  )}
+
+                </div>
+
+
+                <div className="whitespace-pre-line text-sm leading-7 text-gray-300">
+                  {
+                    explanation.explanation
+                  }
+                </div>
+
+
+                {explanation.warning && (
+                  <p className="mt-4 text-xs text-amber-300">
+                    {
+                      explanation.warning
+                    }
+                  </p>
+                )}
+
+              </div>
+            )}
+
+          </div>
+
+
           <p className="mt-6 text-xs text-gray-600">
             {result.simulation_notice}
           </p>
@@ -548,7 +801,7 @@ function SimulatorField({
           {label}
         </label>
 
-        <span className="text-sm font-semibold text-white">
+        <span className="text-sm font-semibold">
           {value}
         </span>
 
@@ -602,7 +855,6 @@ function SimulationFactor({
       (value / max) * 100,
       100
     );
-
 
   return (
     <div>

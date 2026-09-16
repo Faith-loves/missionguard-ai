@@ -7,6 +7,7 @@ import {
 } from "react";
 
 import WhatIfSimulator from "../components/WhatIfSimulator";
+import AIExplanation from "../components/AIExplanation";
 
 
 type MissionData = {
@@ -96,32 +97,21 @@ export default function Home() {
         setLoading(true);
         setError(null);
 
-        const [
-          missionResponse,
-          kpResponse,
-        ] = await Promise.all([
-          fetch(
+        // Mission assessment is the
+        // required dashboard request.
+        const missionResponse =
+          await fetch(
             `${API_URL}/mission-risk`,
             {
               cache: "no-store",
             }
-          ),
-
-          fetch(
-            `${API_URL}/space-weather/kp-index`,
-            {
-              cache: "no-store",
-            }
-          ),
-        ]);
-
+          );
 
         if (!missionResponse.ok) {
           throw new Error(
             `Mission API returned ${missionResponse.status}`
           );
         }
-
 
         const missionResult =
           (await missionResponse.json()) as MissionData;
@@ -131,20 +121,40 @@ export default function Home() {
         );
 
 
-        if (kpResponse.ok) {
-          const kpResult =
-            (await kpResponse.json()) as KpResponse;
-
-          if (
-            kpResult.available &&
-            Array.isArray(
-              kpResult.history
-            )
-          ) {
-            setKpHistory(
-              kpResult.history.slice(-24)
+        // Kp history is optional.
+        // If NOAA temporarily fails,
+        // the rest of MissionGuard
+        // remains online.
+        try {
+          const kpResponse =
+            await fetch(
+              `${API_URL}/space-weather/kp-index`,
+              {
+                cache: "no-store",
+              }
             );
+
+          if (kpResponse.ok) {
+            const kpResult =
+              (await kpResponse.json()) as KpResponse;
+
+            if (
+              kpResult.available &&
+              Array.isArray(
+                kpResult.history
+              )
+            ) {
+              setKpHistory(
+                kpResult.history.slice(-24)
+              );
+            }
           }
+
+        } catch (kpError) {
+          console.warn(
+            "Kp history temporarily unavailable:",
+            kpError
+          );
         }
 
       } catch (err) {
@@ -153,11 +163,11 @@ export default function Home() {
         setError(
           "MissionGuard backend is unavailable."
         );
+
       } finally {
         setLoading(false);
       }
     }, []);
-
 
   useEffect(() => {
     loadMissionData();
@@ -631,6 +641,44 @@ export default function Home() {
           />
 
         </section>
+
+
+        {mission && solar && cme && geomagnetic && (
+          <AIExplanation
+            mission={mission}
+            riskFactors={
+              data?.risk_factors ?? null
+            }
+            spaceWeather={{
+              solar_activity: {
+                total_flares:
+                  solar.total_flares,
+
+                strongest_flare:
+                  solar.strongest_flare,
+              },
+
+              cme_activity: {
+                total_cmes:
+                  cme.total_cmes,
+
+                earth_directed_cmes:
+                  cme.earth_directed_cmes,
+
+                fastest_speed_km_s:
+                  cme.fastest_speed_km_s,
+              },
+
+              geomagnetic_activity: {
+                latest_kp:
+                  geomagnetic.latest_kp,
+
+                storm_count:
+                  geomagnetic.storm_count,
+              },
+            }}
+          />
+        )}
 
 
         <WhatIfSimulator />
@@ -1211,6 +1259,9 @@ function getKpTone(
 
   return "border-emerald-400/20 text-emerald-300";
 }
+
+
+
 
 
 
