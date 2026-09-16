@@ -27,11 +27,12 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
 
-    # Development only:
-    # allow the Next.js frontend whether it is
-    # opened through localhost or the local
-    # network address.
-    allow_origins=["*"],
+    # Allowed MissionGuard frontend origins.
+    allow_origins=[
+        "https://missionguard-ai-one.vercel.app",
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+    ],
 
     allow_credentials=False,
     allow_methods=["*"],
