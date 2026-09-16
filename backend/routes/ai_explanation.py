@@ -1,10 +1,21 @@
-﻿from typing import Literal
+﻿from typing import (
+    Annotated,
+    Literal,
+)
 
-from fastapi import APIRouter
+from fastapi import (
+    APIRouter,
+    Depends,
+)
+
 from pydantic import BaseModel
 
 from services.ai_explainer import (
     explain_assessment,
+)
+
+from services.firebase_auth import (
+    require_firebase_user,
 )
 
 
@@ -64,6 +75,13 @@ class ExplanationRequest(BaseModel):
 @router.post("/explain")
 def explain(
     request: ExplanationRequest,
+
+    firebase_user: Annotated[
+        dict,
+        Depends(
+            require_firebase_user
+        ),
+    ],
 ):
     assessment = {
         "mission":
@@ -84,12 +102,18 @@ def explain(
 
 
     return {
-        "status": "success",
+        "status":
+            "success",
 
         "mode":
             request.mode,
 
         **result,
+
+        "authenticated_user":
+            firebase_user.get(
+                "sub"
+            ),
 
         "decision_source":
             "MissionGuard deterministic risk engine",

@@ -1,5 +1,7 @@
 ﻿"use client";
 
+import { authenticatedFetch } from "../lib/authenticatedFetch";
+
 import { useState } from "react";
 
 
@@ -85,7 +87,7 @@ export default function AIExplanation({
       setError(null);
 
 
-      const response = await fetch(
+      const response = await authenticatedFetch(
         `${API_URL}/ai-explanation/explain`,
         {
           method: "POST",
@@ -271,3 +273,4 @@ export default function AIExplanation({
     </section>
   );
 }
+

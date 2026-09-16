@@ -1,5 +1,7 @@
 ﻿"use client";
 
+import { authenticatedFetch } from "../lib/authenticatedFetch";
+
 import {
   FormEvent,
   ReactNode,
@@ -242,7 +244,7 @@ export default function WhatIfSimulator() {
 
 
       const response =
-        await fetch(
+        await authenticatedFetch(
           `${API_URL}/simulator/evaluate`,
           {
             method: "POST",
@@ -307,7 +309,7 @@ export default function WhatIfSimulator() {
 
 
       const response =
-        await fetch(
+        await authenticatedFetch(
           `${API_URL}/ai-explanation/explain`,
           {
             method: "POST",
@@ -1393,3 +1395,4 @@ function getReadinessStyle(
 
   return "text-red-300";
 }
+
