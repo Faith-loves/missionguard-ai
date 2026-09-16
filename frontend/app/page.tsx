@@ -8,6 +8,10 @@ import {
 
 import WhatIfSimulator from "../components/WhatIfSimulator";
 import AIExplanation from "../components/AIExplanation";
+import UserAccount from "../components/UserAccount";
+import HistoryButton from "../components/HistoryButton";
+import SaveAssessment from "../components/SaveAssessment";
+import AuthGuard from "../components/AuthGuard";
 
 
 type MissionData = {
@@ -226,7 +230,9 @@ export default function Home() {
           </div>
 
 
-          <div className="flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm">
+          <div className="flex items-center gap-4">
+
+            <div className="flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm">
 
             <span
               className={`h-2.5 w-2.5 rounded-full ${
@@ -253,6 +259,11 @@ export default function Home() {
                   ? "System Online"
                   : "Connecting..."}
             </span>
+
+            </div>
+
+            <HistoryButton />
+            <UserAccount />
 
           </div>
         </div>
@@ -641,6 +652,57 @@ export default function Home() {
           />
 
         </section>
+
+
+        {mission && solar && cme && geomagnetic && (
+          <SaveAssessment
+            periodDays={
+              data?.period_days ?? 7
+            }
+            mission={mission}
+            riskFactors={
+              data?.risk_factors ?? null
+            }
+            dataQuality={
+              data?.data_quality ?? "unknown"
+            }
+            spaceWeather={{
+              solar_activity: {
+                total_flares:
+                  solar.total_flares,
+                strongest_flare:
+                  solar.strongest_flare,
+                x_class_flares:
+                  solar.x_class_flares,
+                m_class_flares:
+                  solar.m_class_flares,
+                c_class_flares:
+                  solar.c_class_flares,
+              },
+
+              cme_activity: {
+                total_cmes:
+                  cme.total_cmes,
+                earth_directed_cmes:
+                  cme.earth_directed_cmes,
+                fastest_speed_km_s:
+                  cme.fastest_speed_km_s,
+              },
+
+              geomagnetic_activity: {
+                latest_kp:
+                  geomagnetic.latest_kp,
+                storm_count:
+                  geomagnetic.storm_count,
+                kp_time:
+                  geomagnetic.kp_time,
+              },
+            }}
+          />
+        )}
+
+
+        
 
 
         {mission && solar && cme && geomagnetic && (
@@ -1259,6 +1321,16 @@ function getKpTone(
 
   return "border-emerald-400/20 text-emerald-300";
 }
+
+
+
+
+
+
+
+
+
+
 
 
 

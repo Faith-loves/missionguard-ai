@@ -1,4 +1,5 @@
 ﻿import os
+import re
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -149,7 +150,7 @@ SPACE WEATHER
 Kp index:
 {geomagnetic.get("latest_kp")}
 
-Recent storm count:
+Storm count:
 {geomagnetic.get("storm_count")}
 
 Strongest flare:
@@ -295,33 +296,33 @@ def build_fallback_explanation(
 
     if earth_cmes is not None:
         details.append(
-            f"{earth_cmes} Earth-directed "
-            f"CME(s) were recorded"
+            f"Earth-directed CME count: {earth_cmes}"
+            f""
         )
 
 
     if cme_speed is not None:
         details.append(
-            f"the fastest CME reached "
+            f"fastest CME speed: "
             f"{cme_speed} km/s"
         )
 
 
     if kp is not None:
         details.append(
-            f"the Kp index is {kp}"
+            f"Kp index: {kp}"
         )
 
 
     if storms is not None:
         details.append(
-            f"recent storm count is {storms}"
+            f"storm count: {storms}"
         )
 
 
     if flare:
         details.append(
-            f"the strongest flare is {flare}"
+            f"strongest flare: {flare}"
         )
 
 
@@ -335,7 +336,7 @@ def build_fallback_explanation(
 
     second_paragraph = (
         f"The largest risk contribution comes "
-        f"from {dominant_name}. Supporting "
+        f"from {dominant_name}. Assessment "
         f"conditions include {conditions}. "
         f"This explanation describes the "
         f"MissionGuard educational risk model "
@@ -463,6 +464,7 @@ DISALLOWED_EXPLANATION_TERMS = [
 def explanation_is_grounded(
     explanation: str,
     mode: str,
+    assessment: dict[str, Any],
 ) -> bool:
     text = explanation.lower()
 
@@ -470,19 +472,471 @@ def explanation_is_grounded(
         if term.lower() in text:
             return False
 
+    extra_disallowed_terms = [
+        "solar-wind hazards",
+        "solar wind hazards",
+        "other solar-wind",
+        "other solar wind",
+        "additional non-cme",
+        "non-cme threats",
+        "other threats",
+        "cme onslaught",
+        "aggressive series",
+        "reassuring note",
+    ]
+
+    for term in extra_disallowed_terms:
+        if term in text:
+            return False
+
     if mode == "simulation":
-        simulation_disallowed = [
+        for term in [
             "recorded",
             "measured",
             "observed",
             "detected",
-        ]
-
-        for term in simulation_disallowed:
+        ]:
             if term in text:
                 return False
 
+    # Reject ambiguous score assignments such as:
+    # "18 and 10 points respectively".
+    if (
+        "respectively" in text
+        and "point" in text
+    ):
+        return False
+
+    mission = assessment.get(
+        "mission",
+        {},
+    )
+
+    factors = assessment.get(
+        "risk_factors",
+        {},
+    )
+
+    weather = assessment.get(
+        "space_weather",
+        {},
+    )
+
+    solar = weather.get(
+        "solar_activity",
+        {},
+    )
+
+    cme = weather.get(
+        "cme_activity",
+        {},
+    )
+
+    geomagnetic = weather.get(
+        "geomagnetic_activity",
+        {},
+    )
+
+
+    def numbers_equal(
+        actual: str,
+        expected: Any,
+    ) -> bool:
+        if expected is None:
+            return True
+
+        try:
+            return abs(
+                float(actual)
+                - float(expected)
+            ) < 0.001
+
+        except (
+            TypeError,
+            ValueError,
+        ):
+            return False
+
+
+    def validate_numeric_claims(
+        patterns: list[str],
+        expected: Any,
+    ) -> bool:
+        if expected is None:
+            return True
+
+        for pattern in patterns:
+            matches = re.finditer(
+                pattern,
+                explanation,
+                flags=re.IGNORECASE,
+            )
+
+            for match in matches:
+                if not numbers_equal(
+                    match.group(1),
+                    expected,
+                ):
+                    return False
+
+        return True
+
+
+    # ---------------------------------------
+    # Validate overall deterministic result.
+    # ---------------------------------------
+
+    if not validate_numeric_claims(
+        [
+            (
+                r"risk score"
+                r"(?:\s+of|\s+is|:)?"
+                r"\s*(\d+(?:\.\d+)?)"
+            ),
+        ],
+        mission.get(
+            "risk_score"
+        ),
+    ):
+        return False
+
+
+    if not validate_numeric_claims(
+        [
+            (
+                r"(?:mission\s+)?readiness"
+                r"(?:\s+of|\s+is|:)?"
+                r"\s*(\d+(?:\.\d+)?)"
+                r"\s*%?"
+            ),
+            (
+                r"(\d+(?:\.\d+)?)"
+                r"\s*%\s+"
+                r"(?:mission\s+)?readiness"
+            ),
+        ],
+        mission.get(
+            "mission_readiness"
+        ),
+    ):
+        return False
+
+
+    expected_level = str(
+        mission.get(
+            "risk_level",
+            "",
+        )
+    ).lower()
+
+
+    level_matches = re.findall(
+        (
+            r"risk level"
+            r"(?:\s+is|:)?"
+            r"\s*\**"
+            r"(low|moderate|high|critical)"
+            r"\**"
+        ),
+        explanation,
+        flags=re.IGNORECASE,
+    )
+
+
+    for claimed_level in level_matches:
+        if (
+            expected_level
+            and claimed_level.lower()
+            != expected_level
+        ):
+            return False
+
+
+    expected_recommendation = str(
+        mission.get(
+            "recommendation",
+            "",
+        )
+    ).lower()
+
+
+    recommendation_matches = re.findall(
+        (
+            r"(?:recommends?|recommended|"
+            r"recommendation(?:\s+is|:)?)"
+            r"\s+(?:a\s+)?"
+            r"\**"
+            r"(go|caution|delay|no-go)"
+            r"\**"
+        ),
+        explanation,
+        flags=re.IGNORECASE,
+    )
+
+
+    for claimed_recommendation in recommendation_matches:
+        if (
+            expected_recommendation
+            and claimed_recommendation.lower()
+            != expected_recommendation
+        ):
+            return False
+
+
+    # ---------------------------------------
+    # Validate individual factor scores.
+    # ---------------------------------------
+
+    factor_checks = [
+        (
+            [
+                (
+                    r"(?:kp(?:\s+index)?|"
+                    r"geomagnetic(?:\s+factor)?)"
+                    r"[^.!?;\n]{0,100}?"
+                    r"(?:adds?|added|"
+                    r"contributes?|contributed|"
+                    r"reached|score(?:d)?"
+                    r"(?:\s+is|:)?|"
+                    r"component"
+                    r"(?:\s+score)?"
+                    r"(?:\s+of|\s+is|:)?)"
+                    r"\s*(\d+(?:\.\d+)?)"
+                    r"\s*(?:points?|/35)"
+                ),
+            ],
+            factors.get(
+                "geomagnetic"
+            ),
+        ),
+        (
+            [
+                (
+                    r"(?:solar\s+flare|"
+                    r"x-class|m-class|c-class|"
+                    r"\bflare\b)"
+                    r"[^.!?;\n]{0,100}?"
+                    r"(?:adds?|added|"
+                    r"contributes?|contributed|"
+                    r"reached|score(?:d)?"
+                    r"(?:\s+is|:)?|"
+                    r"component"
+                    r"(?:\s+score)?"
+                    r"(?:\s+of|\s+is|:)?)"
+                    r"\s*(\d+(?:\.\d+)?)"
+                    r"\s*(?:points?|/25)"
+                ),
+            ],
+            factors.get(
+                "solar_flare"
+            ),
+        ),
+        (
+            [
+                (
+                    r"(?:\bcme\b|"
+                    r"coronal[-\s]mass ejection)"
+                    r"[^.!?;\n]{0,100}?"
+                    r"(?:adds?|added|"
+                    r"contributes?|contributed|"
+                    r"reached|score(?:d)?"
+                    r"(?:\s+is|:)?|"
+                    r"component"
+                    r"(?:\s+score)?"
+                    r"(?:\s+of|\s+is|:)?)"
+                    r"\s*(\d+(?:\.\d+)?)"
+                    r"\s*(?:points?|/30)"
+                ),
+            ],
+            factors.get(
+                "cme"
+            ),
+        ),
+        (
+            [
+                (
+                    r"(?:geomagnetic\s+storms?|"
+                    r"\bstorm\b)"
+                    r"[^.!?;\n]{0,100}?"
+                    r"(?:adds?|added|"
+                    r"contributes?|contributed|"
+                    r"reached|score(?:d)?"
+                    r"(?:\s+is|:)?|"
+                    r"component"
+                    r"(?:\s+score)?"
+                    r"(?:\s+of|\s+is|:)?)"
+                    r"\s*(\d+(?:\.\d+)?)"
+                    r"\s*(?:points?|/10)"
+                ),
+            ],
+            factors.get(
+                "storm"
+            ),
+        ),
+    ]
+
+
+    for patterns, expected in factor_checks:
+        if not validate_numeric_claims(
+            patterns,
+            expected,
+        ):
+            return False
+
+
+    # ---------------------------------------
+    # Validate scenario/input values.
+    # ---------------------------------------
+
+    if not validate_numeric_claims(
+        [
+            (
+                r"kp index"
+                r"(?:\s+of|\s+is|:)?"
+                r"\s*(\d+(?:\.\d+)?)"
+            ),
+        ],
+        geomagnetic.get(
+            "latest_kp"
+        ),
+    ):
+        return False
+
+
+    if not validate_numeric_claims(
+        [
+            (
+                r"earth[-\s]directed"
+                r"\s+cme(?:s|\(s\))?"
+                r"(?:\s+count)?"
+                r"(?:\s+of|\s+is|:)?"
+                r"\s*(\d+(?:\.\d+)?)"
+            ),
+            (
+                r"(\d+(?:\.\d+)?)"
+                r"\s+earth[-\s]directed"
+                r"\s+cme"
+            ),
+        ],
+        cme.get(
+            "earth_directed_cmes"
+        ),
+    ):
+        return False
+
+
+    if not validate_numeric_claims(
+        [
+            (
+                r"storm count"
+                r"(?:\s+of|\s+is|:)?"
+                r"\s*(\d+(?:\.\d+)?)"
+            ),
+        ],
+        geomagnetic.get(
+            "storm_count"
+        ),
+    ):
+        return False
+
+
+    expected_flare = solar.get(
+        "strongest_flare"
+    )
+
+
+    if expected_flare:
+        flare_matches = re.findall(
+            (
+                r"strongest flare"
+                r"(?:\s+is|:)?"
+                r"\s*"
+                r"([a-z]\d+(?:\.\d+)?)"
+            ),
+            explanation,
+            flags=re.IGNORECASE,
+        )
+
+
+        for claimed_flare in flare_matches:
+            if (
+                claimed_flare.upper()
+                != str(
+                    expected_flare
+                ).upper()
+            ):
+                return False
+
+
+    # ---------------------------------------
+    # Validate dominant-factor claims.
+    # ---------------------------------------
+
+    numeric_factors = {
+        name: value
+        for name, value
+        in factors.items()
+        if isinstance(
+            value,
+            (int, float),
+        )
+    }
+
+
+    if numeric_factors:
+        dominant_factor = max(
+            numeric_factors,
+            key=numeric_factors.get,
+        )
+
+
+        aliases = {
+            "geomagnetic":
+                "geomagnetic",
+
+            "solar_flare":
+                "solar flare",
+
+            "cme":
+                "cme",
+
+            "storm":
+                "storm",
+        }
+
+
+        dominant_claim = re.search(
+            (
+                r"(?:largest|dominant|"
+                r"most influential|biggest)"
+                r"[^.!?]{0,100}?"
+                r"(geomagnetic|solar flare|"
+                r"cme|storm)"
+            ),
+            explanation,
+            flags=re.IGNORECASE,
+        )
+
+
+        if dominant_claim:
+            claimed = (
+                dominant_claim
+                .group(1)
+                .lower()
+            )
+
+            expected = aliases.get(
+                dominant_factor,
+                dominant_factor,
+            )
+
+
+            if claimed != expected:
+                return False
+
+
     return True
+
 
 
 def explain_assessment(
@@ -508,6 +962,7 @@ def explain_assessment(
             if not explanation_is_grounded(
                 explanation,
                 mode,
+                assessment,
             ):
                 return {
                     "provider":
@@ -607,6 +1062,8 @@ def explain_assessment(
                 "configured yet."
             ),
     }
+
+
 
 
 

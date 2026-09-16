@@ -2,8 +2,20 @@
 
 import {
   FormEvent,
+  ReactNode,
   useState,
 } from "react";
+
+import {
+  addDoc,
+  collection,
+  serverTimestamp,
+} from "firebase/firestore";
+
+import {
+  auth,
+  db,
+} from "../lib/firebase";
 
 
 type FlareClass =
@@ -11,6 +23,16 @@ type FlareClass =
   | "C"
   | "M"
   | "X";
+
+
+type SimulationScenario = {
+  kp_index: number;
+  flare_class: FlareClass;
+  flare_magnitude: number;
+  earth_directed_cmes: number;
+  fastest_cme_speed_km_s: number;
+  storm_count: number;
+};
 
 
 type SimulationResult = {
@@ -97,10 +119,24 @@ export default function WhatIfSimulator() {
     setStormCount,
   ] = useState(0);
 
-  const [result, setResult] =
+
+  const [
+    result,
+    setResult,
+  ] =
     useState<SimulationResult | null>(
       null
     );
+
+
+  const [
+    lastScenario,
+    setLastScenario,
+  ] =
+    useState<SimulationScenario | null>(
+      null
+    );
+
 
   const [
     explanation,
@@ -110,22 +146,59 @@ export default function WhatIfSimulator() {
       null
     );
 
-  const [loading, setLoading] =
-    useState(false);
+
+  const [
+    loading,
+    setLoading,
+  ] = useState(false);
+
 
   const [
     explanationLoading,
     setExplanationLoading,
   ] = useState(false);
 
-  const [error, setError] =
-    useState<string | null>(null);
+
+  const [
+    saving,
+    setSaving,
+  ] = useState(false);
+
+
+  const [
+    error,
+    setError,
+  ] =
+    useState<string | null>(
+      null
+    );
+
 
   const [
     explanationError,
     setExplanationError,
   ] =
-    useState<string | null>(null);
+    useState<string | null>(
+      null
+    );
+
+
+  const [
+    saveMessage,
+    setSaveMessage,
+  ] =
+    useState<string | null>(
+      null
+    );
+
+
+  const [
+    saveError,
+    setSaveError,
+  ] =
+    useState<string | null>(
+      null
+    );
 
 
   async function runSimulation(
@@ -133,42 +206,58 @@ export default function WhatIfSimulator() {
   ) {
     event.preventDefault();
 
+
+    const scenario: SimulationScenario = {
+      kp_index: kpIndex,
+
+      flare_class:
+        flareClass,
+
+      flare_magnitude:
+        flareMagnitude,
+
+      earth_directed_cmes:
+        earthDirectedCmes,
+
+      fastest_cme_speed_km_s:
+        cmeSpeed,
+
+      storm_count:
+        stormCount,
+    };
+
+
     try {
       setLoading(true);
+
       setError(null);
+
       setExplanation(null);
+
       setExplanationError(null);
 
-      const response = await fetch(
-        `${API_URL}/simulator/evaluate`,
-        {
-          method: "POST",
+      setSaveMessage(null);
 
-          headers: {
-            "Content-Type":
-              "application/json",
-          },
+      setSaveError(null);
 
-          body: JSON.stringify({
-            kp_index: kpIndex,
 
-            flare_class:
-              flareClass,
+      const response =
+        await fetch(
+          `${API_URL}/simulator/evaluate`,
+          {
+            method: "POST",
 
-            flare_magnitude:
-              flareMagnitude,
+            headers: {
+              "Content-Type":
+                "application/json",
+            },
 
-            earth_directed_cmes:
-              earthDirectedCmes,
-
-            fastest_cme_speed_km_s:
-              cmeSpeed,
-
-            storm_count:
-              stormCount,
-          }),
-        }
-      );
+            body:
+              JSON.stringify(
+                scenario
+              ),
+          }
+        );
 
 
       if (!response.ok) {
@@ -181,7 +270,12 @@ export default function WhatIfSimulator() {
       const data =
         (await response.json()) as SimulationResult;
 
+
       setResult(data);
+
+      setLastScenario(
+        scenario
+      );
 
     } catch (err) {
       console.error(err);
@@ -201,82 +295,90 @@ export default function WhatIfSimulator() {
       return;
     }
 
+
     try {
-      setExplanationLoading(true);
-      setExplanationError(null);
-
-      const response = await fetch(
-        `${API_URL}/ai-explanation/explain`,
-        {
-          method: "POST",
-
-          headers: {
-            "Content-Type":
-              "application/json",
-          },
-
-          body: JSON.stringify({
-            mode:
-              "simulation",
-
-            mission:
-              result.mission,
-
-            risk_factors:
-              result.risk_factors,
-
-            space_weather: {
-              solar_activity: {
-                total_flares:
-                  result
-                    .simulated_space_weather
-                    .solar_activity
-                    .total_flares,
-
-                strongest_flare:
-                  result
-                    .simulated_space_weather
-                    .solar_activity
-                    .strongest_flare,
-              },
-
-              cme_activity: {
-                total_cmes:
-                  result
-                    .simulated_space_weather
-                    .cme_activity
-                    .total_cmes,
-
-                earth_directed_cmes:
-                  result
-                    .simulated_space_weather
-                    .cme_activity
-                    .earth_directed_cmes,
-
-                fastest_speed_km_s:
-                  result
-                    .simulated_space_weather
-                    .cme_activity
-                    .fastest_speed_km_s,
-              },
-
-              geomagnetic_activity: {
-                latest_kp:
-                  result
-                    .simulated_space_weather
-                    .geomagnetic_activity
-                    .latest_kp,
-
-                storm_count:
-                  result
-                    .simulated_space_weather
-                    .geomagnetic_activity
-                    .storm_count,
-              },
-            },
-          }),
-        }
+      setExplanationLoading(
+        true
       );
+
+      setExplanationError(
+        null
+      );
+
+
+      const response =
+        await fetch(
+          `${API_URL}/ai-explanation/explain`,
+          {
+            method: "POST",
+
+            headers: {
+              "Content-Type":
+                "application/json",
+            },
+
+            body: JSON.stringify({
+              mode:
+                "simulation",
+
+              mission:
+                result.mission,
+
+              risk_factors:
+                result.risk_factors,
+
+              space_weather: {
+                solar_activity: {
+                  total_flares:
+                    result
+                      .simulated_space_weather
+                      .solar_activity
+                      .total_flares,
+
+                  strongest_flare:
+                    result
+                      .simulated_space_weather
+                      .solar_activity
+                      .strongest_flare,
+                },
+
+                cme_activity: {
+                  total_cmes:
+                    result
+                      .simulated_space_weather
+                      .cme_activity
+                      .total_cmes,
+
+                  earth_directed_cmes:
+                    result
+                      .simulated_space_weather
+                      .cme_activity
+                      .earth_directed_cmes,
+
+                  fastest_speed_km_s:
+                    result
+                      .simulated_space_weather
+                      .cme_activity
+                      .fastest_speed_km_s,
+                },
+
+                geomagnetic_activity: {
+                  latest_kp:
+                    result
+                      .simulated_space_weather
+                      .geomagnetic_activity
+                      .latest_kp,
+
+                  storm_count:
+                    result
+                      .simulated_space_weather
+                      .geomagnetic_activity
+                      .storm_count,
+                },
+              },
+            }),
+          }
+        );
 
 
       if (!response.ok) {
@@ -289,7 +391,10 @@ export default function WhatIfSimulator() {
       const data =
         (await response.json()) as ExplanationResult;
 
-      setExplanation(data);
+
+      setExplanation(
+        data
+      );
 
     } catch (err) {
       console.error(err);
@@ -299,22 +404,256 @@ export default function WhatIfSimulator() {
       );
 
     } finally {
-      setExplanationLoading(false);
+      setExplanationLoading(
+        false
+      );
+    }
+  }
+
+
+  async function saveSimulation() {
+    const user =
+      auth.currentUser;
+
+
+    if (!user) {
+      setSaveError(
+        "You must be signed in to save simulations."
+      );
+
+      return;
+    }
+
+
+    if (
+      !result ||
+      !lastScenario
+    ) {
+      setSaveError(
+        "Run a simulation before saving."
+      );
+
+      return;
+    }
+
+
+    try {
+      setSaving(true);
+
+      setSaveError(null);
+
+      setSaveMessage(null);
+
+
+      const simulationsRef =
+        collection(
+          db,
+          "users",
+          user.uid,
+          "simulations"
+        );
+
+
+      await addDoc(
+        simulationsRef,
+        {
+          type:
+            "what_if_simulation",
+
+          user_email:
+            user.email ?? null,
+
+          scenario: {
+            kp_index:
+              lastScenario.kp_index,
+
+            flare_class:
+              lastScenario.flare_class,
+
+            flare_magnitude:
+              lastScenario.flare_magnitude,
+
+            earth_directed_cmes:
+              lastScenario
+                .earth_directed_cmes,
+
+            fastest_cme_speed_km_s:
+              lastScenario
+                .fastest_cme_speed_km_s,
+
+            storm_count:
+              lastScenario.storm_count,
+          },
+
+          mission: {
+            risk_score:
+              result
+                .mission
+                .risk_score,
+
+            mission_readiness:
+              result
+                .mission
+                .mission_readiness,
+
+            risk_level:
+              result
+                .mission
+                .risk_level,
+
+            recommendation:
+              result
+                .mission
+                .recommendation,
+          },
+
+          risk_factors: {
+            geomagnetic:
+              result
+                .risk_factors
+                .geomagnetic,
+
+            solar_flare:
+              result
+                .risk_factors
+                .solar_flare,
+
+            cme:
+              result
+                .risk_factors
+                .cme,
+
+            storm:
+              result
+                .risk_factors
+                .storm,
+          },
+
+          simulated_space_weather: {
+            solar_activity: {
+              total_flares:
+                result
+                  .simulated_space_weather
+                  .solar_activity
+                  .total_flares,
+
+              strongest_flare:
+                result
+                  .simulated_space_weather
+                  .solar_activity
+                  .strongest_flare,
+            },
+
+            cme_activity: {
+              total_cmes:
+                result
+                  .simulated_space_weather
+                  .cme_activity
+                  .total_cmes,
+
+              earth_directed_cmes:
+                result
+                  .simulated_space_weather
+                  .cme_activity
+                  .earth_directed_cmes,
+
+              fastest_speed_km_s:
+                result
+                  .simulated_space_weather
+                  .cme_activity
+                  .fastest_speed_km_s,
+            },
+
+            geomagnetic_activity: {
+              latest_kp:
+                result
+                  .simulated_space_weather
+                  .geomagnetic_activity
+                  .latest_kp,
+
+              storm_count:
+                result
+                  .simulated_space_weather
+                  .geomagnetic_activity
+                  .storm_count,
+            },
+          },
+
+          granite_explanation:
+            explanation
+              ? {
+                  provider:
+                    explanation.provider,
+
+                  model:
+                    explanation.model,
+
+                  ai_generated:
+                    explanation.ai_generated,
+
+                  explanation:
+                    explanation.explanation,
+
+                  warning:
+                    explanation.warning ??
+                    null,
+                }
+              : null,
+
+          simulation_notice:
+            result.simulation_notice,
+
+          saved_at:
+            serverTimestamp(),
+        }
+      );
+
+
+      setSaveMessage(
+        "Simulation saved successfully."
+      );
+
+    } catch (err) {
+      console.error(err);
+
+      setSaveError(
+        "Unable to save the simulation."
+      );
+
+    } finally {
+      setSaving(false);
     }
   }
 
 
   function resetSimulation() {
     setKpIndex(2);
-    setFlareClass("NONE");
+
+    setFlareClass(
+      "NONE"
+    );
+
     setFlareMagnitude(1);
+
     setEarthDirectedCmes(0);
+
     setCmeSpeed(0);
+
     setStormCount(0);
+
     setResult(null);
+
+    setLastScenario(null);
+
     setExplanation(null);
+
     setError(null);
+
     setExplanationError(null);
+
+    setSaveMessage(null);
+
+    setSaveError(null);
   }
 
 
@@ -324,6 +663,7 @@ export default function WhatIfSimulator() {
       <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
 
         <div>
+
           <p className="text-sm uppercase tracking-[0.18em] text-violet-400">
             What-If Simulator
           </p>
@@ -338,6 +678,7 @@ export default function WhatIfSimulator() {
             Simulations do not alter live NASA or
             NOAA data.
           </p>
+
         </div>
 
 
@@ -349,14 +690,19 @@ export default function WhatIfSimulator() {
 
 
       <form
-        onSubmit={runSimulation}
+        onSubmit={
+          runSimulation
+        }
         className="mt-8 grid gap-6 lg:grid-cols-2"
       >
 
         <SimulatorField
           label="Kp Index"
-          value={kpIndex.toFixed(1)}
+          value={
+            kpIndex.toFixed(1)
+          }
         >
+
           <input
             type="range"
             min="0"
@@ -378,6 +724,7 @@ export default function WhatIfSimulator() {
             <span>5 Storm</span>
             <span>9 Extreme</span>
           </div>
+
         </SimulatorField>
 
 
@@ -395,10 +742,13 @@ export default function WhatIfSimulator() {
           <div className="grid grid-cols-2 gap-3">
 
             <select
-              value={flareClass}
+              value={
+                flareClass
+              }
               onChange={(event) =>
                 setFlareClass(
-                  event.target.value as FlareClass
+                  event.target
+                    .value as FlareClass
                 )
               }
               className="rounded-xl border border-white/10 bg-[#0C1220] px-4 py-3 text-sm outline-none focus:border-violet-400/50"
@@ -429,9 +779,12 @@ export default function WhatIfSimulator() {
               max="9.9"
               step="0.1"
               disabled={
-                flareClass === "NONE"
+                flareClass ===
+                "NONE"
               }
-              value={flareMagnitude}
+              value={
+                flareMagnitude
+              }
               onChange={(event) =>
                 setFlareMagnitude(
                   Number(
@@ -443,6 +796,7 @@ export default function WhatIfSimulator() {
             />
 
           </div>
+
         </SimulatorField>
 
 
@@ -452,6 +806,7 @@ export default function WhatIfSimulator() {
             earthDirectedCmes
           )}
         >
+
           <input
             type="range"
             min="0"
@@ -469,6 +824,7 @@ export default function WhatIfSimulator() {
             }
             className="w-full accent-violet-400"
           />
+
         </SimulatorField>
 
 
@@ -476,12 +832,15 @@ export default function WhatIfSimulator() {
           label="Fastest CME Speed"
           value={`${cmeSpeed} km/s`}
         >
+
           <input
             type="range"
             min="0"
             max="3000"
             step="50"
-            value={cmeSpeed}
+            value={
+              cmeSpeed
+            }
             onChange={(event) =>
               setCmeSpeed(
                 Number(
@@ -497,6 +856,7 @@ export default function WhatIfSimulator() {
             <span>1500</span>
             <span>3000 km/s</span>
           </div>
+
         </SimulatorField>
 
 
@@ -506,12 +866,15 @@ export default function WhatIfSimulator() {
             stormCount
           )}
         >
+
           <input
             type="range"
             min="0"
             max="5"
             step="1"
-            value={stormCount}
+            value={
+              stormCount
+            }
             onChange={(event) =>
               setStormCount(
                 Number(
@@ -521,6 +884,7 @@ export default function WhatIfSimulator() {
             }
             className="w-full accent-violet-400"
           />
+
         </SimulatorField>
 
 
@@ -528,7 +892,9 @@ export default function WhatIfSimulator() {
 
           <button
             type="submit"
-            disabled={loading}
+            disabled={
+              loading
+            }
             className="flex-1 rounded-xl bg-violet-500 px-5 py-3 text-sm font-semibold transition hover:bg-violet-400 disabled:opacity-50"
           >
             {loading
@@ -565,6 +931,7 @@ export default function WhatIfSimulator() {
           <div className="mb-5 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
 
             <div>
+
               <p className="text-sm text-gray-500">
                 Simulated Mission Assessment
               </p>
@@ -572,22 +939,59 @@ export default function WhatIfSimulator() {
               <h4 className="mt-1 text-xl font-semibold">
                 Scenario Result
               </h4>
+
             </div>
 
 
-            <span
-              className={`w-fit rounded-full border px-4 py-2 text-sm font-bold ${getRecommendationStyle(
-                result.mission
-                  .recommendation
-              )}`}
-            >
-              {
-                result.mission
-                  .recommendation
-              }
-            </span>
+            <div className="flex flex-wrap items-center gap-3">
+
+              <span
+                className={`w-fit rounded-full border px-4 py-2 text-sm font-bold ${getRecommendationStyle(
+                  result
+                    .mission
+                    .recommendation
+                )}`}
+              >
+                {
+                  result
+                    .mission
+                    .recommendation
+                }
+              </span>
+
+
+              <button
+                type="button"
+                onClick={
+                  saveSimulation
+                }
+                disabled={
+                  saving
+                }
+                className="rounded-xl border border-violet-400/30 bg-violet-400/10 px-4 py-2 text-sm font-semibold text-violet-200 transition hover:bg-violet-400/20 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {saving
+                  ? "Saving..."
+                  : "Save Simulation"}
+              </button>
+
+            </div>
 
           </div>
+
+
+          {saveMessage && (
+            <div className="mb-5 rounded-xl border border-emerald-400/20 bg-emerald-400/5 p-4 text-sm text-emerald-300">
+              {saveMessage}
+            </div>
+          )}
+
+
+          {saveError && (
+            <div className="mb-5 rounded-xl border border-red-400/20 bg-red-400/5 p-4 text-sm text-red-300">
+              {saveError}
+            </div>
+          )}
 
 
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -597,46 +1001,55 @@ export default function WhatIfSimulator() {
               value={`${result.mission.risk_score}/100`}
               style={
                 getRiskTextStyle(
-                  result.mission
+                  result
+                    .mission
                     .risk_level
                 )
               }
             />
+
 
             <ResultCard
               label="Readiness"
               value={`${result.mission.mission_readiness}%`}
               style={
                 getReadinessStyle(
-                  result.mission
+                  result
+                    .mission
                     .mission_readiness
                 )
               }
             />
 
+
             <ResultCard
               label="Risk Level"
               value={
-                result.mission
+                result
+                  .mission
                   .risk_level
               }
               style={
                 getRiskTextStyle(
-                  result.mission
+                  result
+                    .mission
                     .risk_level
                 )
               }
             />
 
+
             <ResultCard
               label="Decision"
               value={
-                result.mission
+                result
+                  .mission
                   .recommendation
               }
               style={
                 getRiskTextStyle(
-                  result.mission
+                  result
+                    .mission
                     .risk_level
                 )
               }
@@ -650,34 +1063,41 @@ export default function WhatIfSimulator() {
             <SimulationFactor
               label="Geomagnetic"
               value={
-                result.risk_factors
+                result
+                  .risk_factors
                   .geomagnetic
               }
               max={35}
             />
 
+
             <SimulationFactor
               label="Solar Flare"
               value={
-                result.risk_factors
+                result
+                  .risk_factors
                   .solar_flare
               }
               max={25}
             />
 
+
             <SimulationFactor
               label="CME"
               value={
-                result.risk_factors
+                result
+                  .risk_factors
                   .cme
               }
               max={30}
             />
 
+
             <SimulationFactor
               label="Storm"
               value={
-                result.risk_factors
+                result
+                  .risk_factors
                   .storm
               }
               max={10}
@@ -691,6 +1111,7 @@ export default function WhatIfSimulator() {
             <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
 
               <div>
+
                 <p className="text-sm font-semibold text-violet-300">
                   IBM Granite Scenario Explanation
                 </p>
@@ -699,6 +1120,7 @@ export default function WhatIfSimulator() {
                   Granite explains the simulated
                   result without changing it.
                 </p>
+
               </div>
 
 
@@ -772,7 +1194,9 @@ export default function WhatIfSimulator() {
 
 
           <p className="mt-6 text-xs text-gray-600">
-            {result.simulation_notice}
+            {
+              result.simulation_notice
+            }
           </p>
 
         </div>
@@ -790,7 +1214,7 @@ function SimulatorField({
 }: {
   label: string;
   value: string;
-  children: React.ReactNode;
+  children: ReactNode;
 }) {
   return (
     <div className="rounded-xl border border-white/10 bg-black/10 p-5">
@@ -856,6 +1280,7 @@ function SimulationFactor({
       100
     );
 
+
   return (
     <div>
 
@@ -902,7 +1327,9 @@ function SimulationFactor({
 function getRecommendationStyle(
   recommendation: string
 ) {
-  switch (recommendation) {
+  switch (
+    recommendation
+  ) {
     case "GO":
       return "border-emerald-400/30 bg-emerald-400/10 text-emerald-300";
 
@@ -946,15 +1373,21 @@ function getRiskTextStyle(
 function getReadinessStyle(
   readiness: number
 ) {
-  if (readiness >= 75) {
+  if (
+    readiness >= 75
+  ) {
     return "text-emerald-300";
   }
 
-  if (readiness >= 50) {
+  if (
+    readiness >= 50
+  ) {
     return "text-amber-300";
   }
 
-  if (readiness >= 25) {
+  if (
+    readiness >= 25
+  ) {
     return "text-orange-300";
   }
 
