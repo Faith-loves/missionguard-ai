@@ -26,7 +26,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "MissionGuard AI",
   description:
-    "Space Mission Readiness and Risk Intelligence",
+    "Educational space-weather risk intelligence and mission-readiness prototype.",
 };
 
 

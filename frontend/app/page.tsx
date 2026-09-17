@@ -11,7 +11,6 @@ import AIExplanation from "../components/AIExplanation";
 import UserAccount from "../components/UserAccount";
 import HistoryButton from "../components/HistoryButton";
 import SaveAssessment from "../components/SaveAssessment";
-import AuthGuard from "../components/AuthGuard";
 
 
 type MissionData = {
@@ -100,6 +99,7 @@ export default function Home() {
       try {
         setLoading(true);
         setError(null);
+        setKpHistory([]);
 
         // Mission assessment is the
         // required dashboard request.
@@ -174,7 +174,7 @@ export default function Home() {
     }, []);
 
   useEffect(() => {
-    loadMissionData();
+    const initialLoad = setTimeout(loadMissionData, 0);
 
     const interval = setInterval(
       loadMissionData,
@@ -182,6 +182,7 @@ export default function Home() {
     );
 
     return () => {
+      clearTimeout(initialLoad);
       clearInterval(interval);
     };
   }, [loadMissionData]);
@@ -217,7 +218,7 @@ export default function Home() {
     <main className="min-h-screen bg-[#070B14] text-white">
 
       <header className="border-b border-white/10 bg-[#070B14]/90 px-6 py-5 backdrop-blur md:px-8">
-        <div className="mx-auto flex max-w-7xl items-center justify-between">
+        <div className="mx-auto flex max-w-7xl flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
 
           <div>
             <h1 className="text-xl font-semibold">
@@ -230,7 +231,7 @@ export default function Home() {
           </div>
 
 
-          <div className="flex items-center gap-4">
+          <div className="flex flex-wrap items-center gap-3">
 
             <div className="flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm">
 
@@ -287,6 +288,10 @@ export default function Home() {
               Live NASA and NOAA space-weather
               intelligence with MissionGuard
               mission-risk assessment.
+            </p>
+            <p className="mt-2 max-w-2xl text-sm text-amber-200/80">
+              Educational prototype. Scores and GO / NO-GO labels are not
+              operational launch guidance or official NASA/NOAA decisions.
             </p>
           </div>
 
@@ -367,7 +372,7 @@ export default function Home() {
           <DashboardCard
             title="Recommendation"
             value={recommendation}
-            subtitle="Mission decision guidance"
+            subtitle="Educational model classification"
             tone={
               getRecommendationTone(
                 recommendation
@@ -707,6 +712,7 @@ export default function Home() {
 
         {mission && solar && cme && geomagnetic && (
           <AIExplanation
+            key={JSON.stringify([mission, data?.risk_factors, solar, cme, geomagnetic])}
             mission={mission}
             riskFactors={
               data?.risk_factors ?? null

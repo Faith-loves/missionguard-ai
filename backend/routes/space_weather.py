@@ -1,6 +1,6 @@
 import asyncio
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Query
 
 from services.nasa_service import (
     get_cmes,
@@ -22,7 +22,7 @@ router = APIRouter(
 
 
 @router.get("/solar-flares")
-async def solar_flares(days: int = 7):
+async def solar_flares(days: int = Query(default=7, ge=1, le=30)):
     result = await get_solar_flares(days)
 
     return {
@@ -35,7 +35,7 @@ async def solar_flares(days: int = 7):
 
 
 @router.get("/cmes")
-async def cmes(days: int = 7):
+async def cmes(days: int = Query(default=7, ge=1, le=30)):
     result = await get_cmes(days)
 
     return {
@@ -48,7 +48,7 @@ async def cmes(days: int = 7):
 
 
 @router.get("/geomagnetic-storms")
-async def geomagnetic_storms(days: int = 7):
+async def geomagnetic_storms(days: int = Query(default=7, ge=1, le=30)):
     result = await get_geomagnetic_storms(days)
 
     return {
@@ -74,7 +74,7 @@ async def kp_index():
 
 
 @router.get("/current")
-async def current_space_weather(days: int = 7):
+async def current_space_weather(days: int = Query(default=7, ge=1, le=30)):
     (
         flare_result,
         cme_result,
@@ -125,7 +125,7 @@ async def current_space_weather(days: int = 7):
 
 
 @router.get("/summary")
-async def space_weather_summary(days: int = 7):
+async def space_weather_summary(days: int = Query(default=7, ge=1, le=30)):
     (
         flare_result,
         cme_result,

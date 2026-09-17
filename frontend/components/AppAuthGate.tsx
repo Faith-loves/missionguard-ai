@@ -36,14 +36,6 @@ export default function AppAuthGate({
 
 
   useEffect(() => {
-    // The login/signup page must stay public.
-    if (pathname === "/auth") {
-      setAllowed(true);
-      setChecking(false);
-      return;
-    }
-
-
     const unsubscribe =
       onAuthStateChanged(
         auth,
@@ -52,9 +44,9 @@ export default function AppAuthGate({
             setAllowed(false);
             setChecking(false);
 
-            router.replace(
-              "/auth"
-            );
+            if (pathname !== "/auth") {
+              router.replace("/auth");
+            }
 
             return;
           }

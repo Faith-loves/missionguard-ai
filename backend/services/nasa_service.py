@@ -143,6 +143,9 @@ async def fetch_nasa_data(
                     provider["params"],
                 )
 
+                if not isinstance(data, list):
+                    raise ValueError("Unexpected NASA response format")
+
                 return {
                     "available": True,
 
@@ -164,12 +167,13 @@ async def fetch_nasa_data(
             except (
                 httpx.HTTPStatusError,
                 httpx.RequestError,
+                ValueError,
             ) as exc:
 
                 errors.append(
                     (
                         f"{provider['name']}: "
-                        f"{exc}"
+                        f"{type(exc).__name__}"
                     )
                 )
 

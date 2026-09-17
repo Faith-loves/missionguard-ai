@@ -1,3 +1,5 @@
+import math
+
 import httpx
 
 
@@ -20,7 +22,7 @@ async def get_kp_index():
             response.raise_for_status()
             data = response.json()
 
-        if not data:
+        if not isinstance(data, list) or not data:
             return {
                 "available": False,
                 "latest": None,
@@ -31,19 +33,27 @@ async def get_kp_index():
         # NOAA may return either dictionaries
         # or a header row followed by data rows.
         if isinstance(data[0], dict):
-            valid_rows = [
-                row
-                for row in data
-                if row.get("Kp") is not None
-            ]
-
-        else:
+            rows = data
+        elif isinstance(data[0], list):
             headers = data[0]
-
-            valid_rows = [
+            rows = [
                 dict(zip(headers, row))
                 for row in data[1:]
+                if isinstance(row, list)
             ]
+        else:
+            rows = []
+
+        valid_rows = []
+        for row in rows:
+            if not isinstance(row, dict) or not row.get("time_tag"):
+                continue
+            try:
+                kp = float(row.get("Kp"))
+            except (TypeError, ValueError):
+                continue
+            if math.isfinite(kp) and 0 <= kp <= 9:
+                valid_rows.append({**row, "Kp": kp})
 
         if not valid_rows:
             return {
@@ -73,10 +83,11 @@ async def get_kp_index():
     except (
         httpx.HTTPStatusError,
         httpx.RequestError,
+        ValueError,
     ) as exc:
         return {
             "available": False,
             "latest": None,
             "history": [],
-            "error": str(exc),
+            "error": f"NOAA data unavailable ({type(exc).__name__})",
         }

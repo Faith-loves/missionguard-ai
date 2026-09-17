@@ -1,0 +1,13 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Saved records are private to their Firebase Authentication owner.
+    match /users/{userId}/assessments/{recordId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    match /users/{userId}/simulations/{recordId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    // All other paths are denied by default.
+  }
+}

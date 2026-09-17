@@ -35,13 +35,4 @@ if response.ok:
         bool(data.get("access_token"))
     )
 else:
-    try:
-        error = response.json()
-        print(
-            "IBM error:",
-            error.get("errorMessage")
-            or error.get("error_description")
-            or error.get("error")
-        )
-    except Exception:
-        print("IBM authentication failed.")
+    print("IBM authentication failed; check credentials and project access.")

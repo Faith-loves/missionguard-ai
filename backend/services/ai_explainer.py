@@ -466,7 +466,17 @@ def explanation_is_grounded(
     mode: str,
     assessment: dict[str, Any],
 ) -> bool:
+    # Formatting must not hide a numeric claim from the checks below.
+    explanation = re.sub(r"[*_`]", "", explanation).strip()
     text = explanation.lower()
+
+    if not text:
+        return False
+
+    # Provider attribution belongs to the UI and deterministic disclaimer.
+    # Conservatively reject model-authored agency authority claims.
+    if re.search(r"\b(?:nasa|noaa)\b", text):
+        return False
 
     for term in DISALLOWED_EXPLANATION_TERMS:
         if term.lower() in text:
@@ -490,6 +500,8 @@ def explanation_is_grounded(
             return False
 
     if mode == "simulation":
+        if not re.search(r"\b(?:simulated|simulation|hypothetical|scenario)\b", text):
+            return False
         for term in [
             "recorded",
             "measured",

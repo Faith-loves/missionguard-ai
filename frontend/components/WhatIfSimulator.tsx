@@ -895,7 +895,7 @@ export default function WhatIfSimulator() {
           <button
             type="submit"
             disabled={
-              loading
+              loading || explanationLoading
             }
             className="flex-1 rounded-xl bg-violet-500 px-5 py-3 text-sm font-semibold transition hover:bg-violet-400 disabled:opacity-50"
           >
@@ -910,6 +910,7 @@ export default function WhatIfSimulator() {
             onClick={
               resetSimulation
             }
+            disabled={loading || explanationLoading}
             className="rounded-xl border border-white/10 bg-white/5 px-5 py-3 text-sm transition hover:bg-white/10"
           >
             Reset
@@ -968,7 +969,7 @@ export default function WhatIfSimulator() {
                   saveSimulation
                 }
                 disabled={
-                  saving
+                  saving || loading || explanationLoading
                 }
                 className="rounded-xl border border-violet-400/30 bg-violet-400/10 px-4 py-2 text-sm font-semibold text-violet-200 transition hover:bg-violet-400/20 disabled:cursor-not-allowed disabled:opacity-50"
               >
@@ -1132,7 +1133,7 @@ export default function WhatIfSimulator() {
                   generateExplanation
                 }
                 disabled={
-                  explanationLoading
+                  explanationLoading || loading
                 }
                 className="rounded-xl bg-violet-500 px-4 py-2.5 text-sm font-semibold transition hover:bg-violet-400 disabled:opacity-50"
               >

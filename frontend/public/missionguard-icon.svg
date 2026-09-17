@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title">
+  <title id="title">MissionGuard AI shield and orbit</title>
+  <rect width="64" height="64" rx="14" fill="#070B14"/>
+  <path d="M32 9 50 16v15c0 11.8-7.1 19.6-18 25-10.9-5.4-18-13.2-18-25V16L32 9Z" fill="#101B32" stroke="#60A5FA" stroke-width="3.5" stroke-linejoin="round"/>
+  <path d="M21.5 38c3.2-8.6 11.4-14 21-13.5" fill="none" stroke="#A78BFA" stroke-width="4" stroke-linecap="round"/>
+  <circle cx="21.5" cy="38" r="3.5" fill="#60A5FA"/>
+  <path d="m43 20.5 1.4 3.6 3.6 1.4-3.6 1.4-1.4 3.6-1.4-3.6-3.6-1.4 3.6-1.4L43 20.5Z" fill="#F8FAFC"/>
+</svg>

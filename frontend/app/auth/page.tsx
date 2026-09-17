@@ -177,7 +177,7 @@ export default function AuthPage() {
           <p className="mt-3 text-sm leading-6 text-gray-500">
             {mode === "login"
               ? "Sign in to access your MissionGuard dashboard and saved assessments."
-              : "Create an account to save mission assessments, simulations, and reports."}
+              : "Create an account to save mission assessments and simulations."}
           </p>
 
         </div>

@@ -58,7 +58,7 @@ except Exception as exc:
 
     print(
         "IBM message:",
-        str(exc)
+        "Provider details omitted to protect credentials."
     )
 
     raise SystemExit
@@ -69,7 +69,7 @@ print("--------------------------------")
 
 
 model_id = (
-    "ibm/granite-3-3-8b-instruct"
+    "ibm/granite-4-h-small"
 )
 
 
@@ -112,5 +112,5 @@ except Exception as exc:
 
     print(
         "IBM message:",
-        str(exc)
+        "Provider details omitted to protect credentials."
     )
